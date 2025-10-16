@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Drone Katalog — Single File</title>
+  <style>
+    :root{
+      --bg:#f6f8fa; --card:#fff; --accent:#0d6efd; --muted:#6c757d;
+      --radius:12px; --shadow: 0 6px 18px rgba(10,10,10,0.08);
+      font-family: Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:#222;line-height:1.45}
+    header{background:linear-gradient(90deg,#0d6efd22,#6f42c122);padding:22px 16px;border-bottom:1px solid #e9ecef}
+    .container{max-width:1100px;margin:20px auto;padding:0 16px}
+    .nav{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .brand{font-weight:700;color:var(--accent);font-size:1.2rem}
+    .hero{margin:18px 0}
+    .search-row{display:flex;gap:8px;margin:12px 0}
+    input[type="text"], input[type="number"], textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #e6e9ee;background:#fff}
+    button{cursor:pointer;border:0;padding:8px 12px;border-radius:8px;background:var(--accent);color:#fff}
+    .btn-ghost{background:transparent;color:var(--accent);border:1px solid rgba(13,110,253,0.12)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:18px}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+    .card img{width:100%;height:160px;object-fit:cover;background:#ddd}
+    .card-body{padding:12px;flex:1;display:flex;flex-direction:column;gap:8px}
+    .card h4{margin:0;font-size:1.05rem}
+    .meta{color:var(--muted);font-size:0.9rem}
+    .card-actions{display:flex;gap:8px;align-items:center;margin-top:auto}
+    .muted{color:var(--muted)}
+    .controls{display:flex;gap:8px;align-items:center}
+    .form-row{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;padding:20px}
+    .modal{background:#fff;border-radius:12px;max-width:760px;width:100%;box-shadow:var(--shadow);overflow:auto;max-height:90vh}
+    .modal .content{padding:16px}
+    .flex{display:flex;gap:12px;align-items:center}
+    .badge{background:#eef6ff;color:var(--accent);padding:6px 8px;border-radius:8px;font-size:0.85rem}
+    footer{margin:36px 0;color:var(--muted);text-align:center}
+    @media (max-width:700px){
+      .form-row{grid-template-columns:1fr}
+      .card img{height:180px}
+      .nav{flex-direction:column;align-items:flex-start;gap:10px}
+    }
+    /* small utilities */
+    .small{font-size:0.9rem}
+    .danger{background:#ff5a5f}
+    .outline{background:transparent;border:1px solid #e6e9ee;color:inherit}
+    .btn-sm{padding:6px 8px;font-size:0.9rem;border-radius:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <div class="brand">DroneHub — Katalog</div>
+      <div class="controls">
+        <span class="muted small">Local demo</span>
+        <button id="btn-add" class="btn btn-sm">+ Tambah Drone</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1 style="margin:0">Katalog Drone</h1>
+      <p class="muted small">Cari, lihat detail, tambah, edit, dan hapus. Data disimpan di browser (localStorage).</p>
+    </section>
+
+    <section class="search-row">
+      <input id="q" type="text" placeholder="Cari nama atau model..." />
+      <button id="btn-search" class="btn">Cari</button>
+      <button id="btn-reset" class="btn btn-ghost">Reset</button>
+    </section>
+
+    <section id="list" class="grid"></section>
+
+    <div id="empty" style="display:none;padding:20px;background:#fff;border-radius:12px;margin-top:12px;text-align:center;color:var(--muted)">
+      Tidak ada drone — tambahkan yang pertama!
+    </div>
+
+    <footer>© 2025 DroneHub — Demo single-file</footer>
+  </main>
+
+  <!-- Modal (reuse for add/edit & detail) -->
+  <div id="modal" class="modal-backdrop" role="dialog" aria-hidden="true">
+    <div class="modal" role="document">
+      <div class="content" id="modal-content">
+        <!-- content diisi oleh JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ======= Data handling (localStorage) =======
+  const STORAGE_KEY = 'dronehub_data_v1';
+
+  function sampleData(){
+    return [
+      {id:1,name:"AeroScout X1",model:"X1",price:1299000,flight_time:"30 min",payload:"2 kg",description:"Drone ringan, ideal untuk pemetaan hobby & inspeksi.",image:"https://via.placeholder.com/800x500?text=AeroScout+X1"},
+      {id:2,name:"Falcon Pro",model:"F-Pro",price:2499000,flight_time:"45 min",payload:"5 kg",description:"Drone profesional untuk survei dan videografi.",image:"https://via.placeholder.com/800x500?text=Falcon+Pro"},
+      {id:3,name:"MiniFlyer",model:"M-2",price:499000,flight_time:"18 min",payload:"0.5 kg",description:"Kompak untuk pemula, mudah dibawa.",image:"https://via.placeholder.com/800x500?text=MiniFlyer"}
+    ];
+  }
+
+  function loadData(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) {
+        const s = sampleData();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+        return s;
+      }
+      return JSON.parse(raw);
+    }catch(e){
+      console.error(e);
+      return sampleData();
+    }
+  }
+
+  function saveData(arr){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  }
+
+  // ======= UI render =======
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const qEl = document.getElementById('q');
+  let data = loadData();
+
+  function money(x){
+    if(!x && x!==0) return '-';
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  }
+
+  function renderList(filter=''){
+    listEl.innerHTML = '';
+    const f = filter.trim().toLowerCase();
+    const filtered = data.filter(d=>{
+      if(!f) return true;
+      return (d.name||'').toLowerCase().includes(f) || (d.model||'').toLowerCase().includes(f);
+    });
+    if(filtered.length === 0){
+      emptyEl.style.display = 'block';
+    } else emptyEl.style.display = 'none';
+
+    filtered.forEach(d=>{
+      const card = document.createElement('div'); card.className='card';
+      card.innerHTML = `
+        <img src="${escapeHtml(d.image||'https://via.placeholder.com/800x500?text=No+Image')}" alt="${escapeHtml(d.name)}">
+        <div class="card-body">
+          <h4>${escapeHtml(d.name)}</h4>
+          <div class="meta">${escapeHtml(d.model)} • Waktu: ${escapeHtml(d.flight_time)}</div>
+          <div class="small muted">${escapeHtml(d.description && d.description.slice(0,90))}${d.description && d.description.length>90 ? '...' : ''}</div>
+          <div class="card-actions">
+            <div><strong>Rp ${money(d.price)}</strong></div>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button class="btn btn-sm outline" data-action="detail" data-id="${d.id}">Detail</button>
+              <button class="btn btn-sm" data-action="edit" data-id="${d.id}">Edit</button>
+              <button class="btn btn-sm danger" style="background:#ff6b6b" data-action="del" data-id="${d.id}">Hapus</button>
+            </div>
+          </div>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+  }
+
+  // ======= Helpers =======
+  function escapeHtml(s){
+    if(!s) return '';
+    return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  }
+
+  function findById(id){
+    return data.find(x=>x.id===id);
+  }
+
+  function openModal(contentHtml){
+    const modal = document.getElementById('modal');
+    const body = document.getElementById('modal-content');
+    body.innerHTML = contentHtml;
+    modal.style.display='flex';
+    modal.setAttribute('aria-hidden','false');
+    // close when clicking backdrop
+    modal.onclick = (e)=>{ if(e.target===modal) closeModal(); }
+  }
+  function closeModal(){ const modal=document.getElementById('modal'); modal.style.display='none'; modal.setAttribute('aria-hidden','true'); }
+
+  // ======= Actions: Add / Edit / Delete / Detail =======
+  document.getElementById('btn-add').addEventListener('click', ()=> openForm());
+  document.getElementById('btn-search').addEventListener('click', ()=> renderList(qEl.value));
+  document.getElementById('btn-reset').addEventListener('click', ()=> { qEl.value=''; renderList(''); });
+
+  // delegate buttons in list
+  listEl.addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('button');
+    if(!btn) return;
+    const act = btn.getAttribute('data-action');
+    const id = Number(btn.getAttribute('data-id'));
+    if(act === 'detail') showDetail(id);
+    if(act === 'edit') openForm(id);
+    if(act === 'del') removeItem(id);
+  });
+
+  function showDetail(id){
+    const d = findById(id);
+    if(!d) return alert('Data tidak ditemukan');
+    openModal(`
+      <div style="display:flex;gap:12px;flex-direction:column">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <img src="${escapeHtml(d.image)}" style="width:280px;height:180px;object-fit:cover;border-radius:8px" alt="${escapeHtml(d.name)}">
+          <div style="flex:1">
+            <h2 style="margin:0">${escapeHtml(d.name)}</h2>
+            <div class="muted small">${escapeHtml(d.model)} • <span class="badge">${escapeHtml(d.flight_time)}</span></div>
+            <p style="margin:8px 0"><strong>Harga:</strong> Rp ${money(d.price)}</p>
+            <p style="margin:0"><strong>Payload:</strong> ${escapeHtml(d.payload)}</p>
+          </div>
+        </div>
+        <div style="margin-top:8px"><p>${escapeHtml(d.description)}</p></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Tutup</button>
+          <button class="btn" onclick="(()=>{ closeModal(); openForm(${d.id}) })()">Edit</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function removeItem(id){
+    if(!confirm('Yakin ingin menghapus drone ini?')) return;
+    data = data.filter(x=>x.id!==id);
+    saveData(data);
+    renderList(qEl.value);
+  }
+
+  // form: if id provided -> edit, else add
+  function openForm(id){
+    const editing = (typeof id !== 'undefined');
+    const d = editing ? Object.assign({}, findById(id)) : {name:'',model:'',price:'',flight_time:'',payload:'',description:'',image:''};
+    const html = `
+      <div>
+        <h3 style="margin:0">${editing ? 'Edit Drone' : 'Tambah Drone'}</h3>
+        <div style="margin-top:12px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <input id="f-name" placeholder="Nama" value="${escapeHtml(d.name)}" />
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <input id="f-model" placeholder="Model" value="${escapeHtml(d.model)}" />
+              <input id="f-flight" placeholder="Waktu terbang (mis: 30 min)" value="${escapeHtml(d.flight_time)}" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <input id="f-price" type="number" placeholder="Harga (angka)" value="${d.price||''}" />
+              <input id="f-payload" placeholder="Payload (mis: 2 kg)" value="${escapeHtml(d.payload)}" />
+            </div>
+            <input id="f-image" placeholder="URL gambar (opsional)" value="${escapeHtml(d.image||'')}" />
+            <textarea id="f-desc" rows="4" placeholder="Deskripsi...">${escapeHtml(d.description||'')}</textarea>
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn-ghost" id="f-cancel">Batal</button>
+            <button class="btn" id="f-save">${editing ? 'Simpan Perubahan' : 'Tambah Drone'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    openModal(html);
+
+    document.getElementById('f-cancel').addEventListener('click', closeModal);
+    document.getElementById('f-save').addEventListener('click', ()=>{
+      const name = document.getElementById('f-name').value.trim();
+      const model = document.getElementById('f-model').value.trim();
+      const flight_time = document.getElementById('f-flight').value.trim();
+      const price = Number(document.getElementById('f-price').value) || 0;
+      const payload = document.getElementById('f-payload').value.trim();
+      const image = document.getElementById('f-image').value.trim() || 'https://via.placeholder.com/800x500?text=No+Image';
+      const description = document.getElementById('f-desc').value.trim();
+
+      if(!name){ alert('Nama harus diisi'); return; }
+
+      if(editing){
+        const idx = data.findIndex(x=>x.id===id);
+        if(idx===-1){ alert('Data tidak ditemukan'); closeModal(); return; }
+        data[idx] = {...data[idx], name, model, flight_time, price, payload, image, description};
+      }else{
+        const newId = data.length ? Math.max(...data.map(x=>x.id))+1 : 1;
+        data.push({id:newId,name,model,flight_time,price,payload,description,image});
+      }
+      saveData(data);
+      closeModal();
+      renderList(qEl.value);
+    });
+  }
+
+  // initial render
+  renderList();
+
+  // expose closeModal & openForm for inline onclick usage
+  window.closeModal = closeModal;
+  window.openForm = openForm;
+
+  </script>
+</body>
+</html>
